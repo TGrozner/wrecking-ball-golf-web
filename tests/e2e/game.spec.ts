@@ -1,31 +1,38 @@
 import { expect, test } from '@playwright/test';
 
-const firstShotText = (levelHint: string) => levelHint;
-
-const toCoord = (box: { x: number; y: number; width: number; height: number }, x: number, y: number) => ({
+const toCoord = (
+  box: { x: number; y: number; width: number; height: number },
+  x: number,
+  y: number,
+) => ({
   x: box.x + (x / 960) * box.width,
   y: box.y + (y / 540) * box.height,
 });
 
+const getShotCounter = (page: any) => page.locator('.hud div:has-text("Coups") strong');
+const getLevelName = (page: any) => page.locator('.level-card strong');
+const getMessage = (page: any) => page.locator('.controls p').first();
+const capturePageErrors = (page: any) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  return pageErrors;
+};
+
 test('game loads and can perform a swing interaction', async ({ page }) => {
-  const consoleErrors: string[] = [];
-  page.on('pageerror', (error) => {
-    consoleErrors.push(error.message);
-  });
+  const pageErrors = capturePageErrors(page);
 
   await page.goto('/');
   const canvas = page.locator('canvas');
+  const shots = getShotCounter(page);
+  const message = getMessage(page);
+
   await expect(canvas).toBeVisible();
-
-  const message = page.locator('.controls p').first();
-  const shots = page.locator('.hud div:has-text("Coups") strong');
-
   await expect(message).not.toBeEmpty();
   await expect(shots).toHaveText('0');
 
   const box = await canvas.boundingBox();
   if (!box) {
-    throw new Error('Canvas box is not available');
+    throw new Error('Canvas bounding box is unavailable');
   }
 
   const start = toCoord(box, 230, 300);
@@ -35,31 +42,47 @@ test('game loads and can perform a swing interaction', async ({ page }) => {
   await page.mouse.up();
 
   await expect(shots).toHaveText('1');
-  await expect(message).not.toHaveText(firstShotText('Tire la boule pour charger ton swing.'));
-  expect(consoleErrors).toHaveLength(0);
+  await expect(message).not.toHaveText('Tire la boule pour charger ton swing.');
+  expect(pageErrors).toHaveLength(0);
 });
 
-test('navigation and controls are usable', async ({ page }) => {
+test('navigue entre les niveaux en boucle', async ({ page }) => {
   await page.goto('/');
-  const levelName = page.locator('.level-card strong');
+
+  const levelName = getLevelName(page);
+  const skipButton = page.getByRole('button', { name: 'Skip niveau' });
 
   await expect(levelName).toHaveText('Swing 101');
-
-  await page.getByRole('button', { name: 'Skip niveau' }).click();
+  await skipButton.click();
   await expect(levelName).toHaveText('Le mur de briques');
+  await skipButton.click();
+  await expect(levelName).toHaveText('Portail nerveux');
+  await skipButton.click();
+  await expect(levelName).toHaveText('Swing 101');
+});
 
-  const resetButton = page.getByRole('button', { name: 'Reset' });
-  await resetButton.click();
-  await expect(page.locator('.game-canvas')).toBeVisible();
+test('reset + contrôles clavier', async ({ page }) => {
+  const pageErrors = capturePageErrors(page);
 
+  await page.goto('/');
   const canvas = page.locator('canvas');
-  await canvas.click();
-  await page.keyboard.press('Space');
+  const shots = getShotCounter(page);
+  const resetButton = page.getByRole('button', { name: 'Reset' });
 
-  const shots = page.locator('.hud div:has-text("Coups") strong');
   await expect(shots).toHaveText('0');
 
+  await canvas.focus();
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('Space');
   await expect(shots).toHaveText('1');
+
+  await resetButton.click();
+  await expect(shots).toHaveText('0');
+
+  await canvas.focus();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Space');
+  await expect(shots).toHaveText('1');
+  expect(pageErrors).toHaveLength(0);
 });
