@@ -19,11 +19,14 @@ Le joueur tire la boule comme un pendule, relâche, casse des obstacles, rebondi
 npm install
 npm run dev
 npm run lint
+npm run e2e
 npm run build
 npm run preview
 ```
 
 `npm run lint` exécute une vérification TypeScript sans build navigateur.
+
+`npm run e2e` lance les tests Playwright (navigateur Chromium) avec un serveur local.
 
 ## Gameplay actuel
 
