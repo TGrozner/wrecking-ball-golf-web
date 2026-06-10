@@ -20,6 +20,7 @@ concurrency:
 jobs:
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,7 +38,19 @@ jobs:
         run: npx playwright install chromium
 
       - name: Run E2E tests
-        run: npm run e2e
+        run: npm run e2e:ci
+        env:
+          CI: true
+
+      - name: Upload e2e artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure-artifacts
+          path: |
+            test-results
+            playwright-report
+          if-no-files-found: ignore
 
   build:
     needs: e2e

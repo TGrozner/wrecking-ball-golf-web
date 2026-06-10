@@ -9,19 +9,29 @@ const toCoord = (
   y: box.y + (y / 540) * box.height,
 });
 
-const getShotCounter = (page: any) => page.locator('.hud div:has-text("Coups") strong');
-const getLevelName = (page: any) => page.locator('.level-card strong');
-const getMessage = (page: any) => page.locator('.controls p').first();
-const capturePageErrors = (page: any) => {
+import type { Page } from '@playwright/test';
+
+const getShotCounter = (page: Page) => page.locator('.hud div:has-text("Coups") strong');
+const getLevelName = (page: Page) => page.locator('.level-card strong');
+const getMessage = (page: Page) => page.locator('.controls p').first();
+const capturePageErrors = (page: Page) => {
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
   return pageErrors;
+};
+const waitForGameReady = async (page: Page) => {
+  const canvas = page.locator('canvas');
+  await expect(canvas).toBeVisible();
+  await expect(page.locator('.game-canvas')).toBeVisible();
+  await expect(getShotCounter(page)).toHaveText('0');
+  await expect(page.locator('.controls')).toBeVisible();
 };
 
 test('game loads and can perform a swing interaction', async ({ page }) => {
   const pageErrors = capturePageErrors(page);
 
   await page.goto('/');
+  await waitForGameReady(page);
   const canvas = page.locator('canvas');
   const shots = getShotCounter(page);
   const message = getMessage(page);
@@ -48,6 +58,7 @@ test('game loads and can perform a swing interaction', async ({ page }) => {
 
 test('navigue entre les niveaux en boucle', async ({ page }) => {
   await page.goto('/');
+  await waitForGameReady(page);
 
   const levelName = getLevelName(page);
   const skipButton = page.getByRole('button', { name: 'Skip niveau' });
@@ -65,6 +76,8 @@ test('reset + contrôles clavier', async ({ page }) => {
   const pageErrors = capturePageErrors(page);
 
   await page.goto('/');
+  await waitForGameReady(page);
+
   const canvas = page.locator('canvas');
   const shots = getShotCounter(page);
   const resetButton = page.getByRole('button', { name: 'Reset' });
