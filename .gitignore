@@ -1,0 +1,16 @@
+# Dependency and build artifacts
+node_modules/
+dist/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# TypeScript cache
+tsconfig.app.tsbuildinfo
+tsconfig.node.tsbuildinfo
+
+# OS artifacts
+.DS_Store
+Thumbs.db

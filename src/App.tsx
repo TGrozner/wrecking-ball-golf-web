@@ -37,6 +37,7 @@ const INITIAL_METRICS: Metrics = {
 const BALL_RADIUS = 28;
 const MAX_LAUNCH_SPEED = 18;
 const MIN_SHOT_PULL = 34;
+const KEY_AIM_STEP = 20;
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const distance = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.y - b.y);
 
@@ -440,41 +441,49 @@ function App() {
     const canvas = render.canvas;
     canvas.className = 'game-canvas';
     canvas.style.touchAction = 'none';
+    canvas.tabIndex = 0;
+    canvas.setAttribute('role', 'application');
+    canvas.setAttribute('aria-label', 'Zone de jeu. Utilisez la souris, le doigt ou le clavier.');
 
     let activePointerId: number | null = null;
-
-    const startAim = (event: PointerEvent) => {
+    const beginAimAt = (point: Vec2, pointerId?: number) => {
       if (state.levelComplete) return;
-      const point = pointFromPointer(event, canvas);
-      if (distance(point, ball.position) > 105) return;
-      activePointerId = event.pointerId;
-      canvas.setPointerCapture(event.pointerId);
+
+      const clampedPoint = clampToRope(point, currentLevel.anchor, currentLevel.ropeLength);
+      activePointerId = pointerId ?? null;
+
       state.aiming = true;
       state.message = 'Relâche pour envoyer la boule.';
-      state.aimPoint = point;
+      state.aimPoint = clampedPoint;
       Body.setStatic(ball, true);
       Body.setAngularVelocity(ball, 0);
       Body.setVelocity(ball, { x: 0, y: 0 });
-      Body.setPosition(ball, clampToRope(point, currentLevel.anchor, currentLevel.ropeLength));
+      Body.setPosition(ball, clampedPoint);
+      if (pointerId !== undefined) {
+        canvas.setPointerCapture(pointerId);
+      }
+
+      canvas.focus();
       publishMetrics();
     };
 
-    const moveAim = (event: PointerEvent) => {
-      if (!state.aiming || activePointerId !== event.pointerId) return;
-      const point = pointFromPointer(event, canvas);
+    const updateAim = (point: Vec2) => {
+      if (!state.aiming) return;
       const clampedPoint = clampToRope(point, currentLevel.anchor, currentLevel.ropeLength);
       state.aimPoint = clampedPoint;
       Body.setPosition(ball, clampedPoint);
       Body.setVelocity(ball, { x: 0, y: 0 });
     };
 
-    const releaseAim = (event: PointerEvent) => {
-      if (!state.aiming || activePointerId !== event.pointerId) return;
-      state.aiming = false;
-      activePointerId = null;
-      canvas.releasePointerCapture(event.pointerId);
-
+    const launchAim = () => {
+      if (!state.aiming) return;
       const pullDistance = distance(ball.position, currentLevel.anchor);
+      state.aiming = false;
+      if (activePointerId !== null) {
+        canvas.releasePointerCapture(activePointerId);
+        activePointerId = null;
+      }
+
       Body.setStatic(ball, false);
 
       if (pullDistance < MIN_SHOT_PULL) {
@@ -495,19 +504,105 @@ function App() {
       publishMetrics();
     };
 
-    const cancelAim = (event: PointerEvent) => {
-      if (!state.aiming || activePointerId !== event.pointerId) return;
+    const cancelCurrentAim = () => {
+      if (!state.aiming) return;
       state.aiming = false;
-      activePointerId = null;
+      if (activePointerId !== null) {
+        canvas.releasePointerCapture(activePointerId);
+        activePointerId = null;
+      }
       Body.setStatic(ball, false);
       publishMetrics();
+    };
+
+    const beginKeyboardAim = () => {
+      beginAimAt({ x: ball.position.x - 28, y: ball.position.y });
+    };
+
+    const moveKeyboardAim = (dx: number, dy: number) => {
+      if (!state.aiming) {
+        beginKeyboardAim();
+      }
+      updateAim({ x: state.aimPoint.x + dx, y: state.aimPoint.y + dy });
+    };
+
+    const onCanvasKeyDown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      if (key === ' ' || key === 'enter' || key === 'escape') {
+        event.preventDefault();
+      }
+
+      if (key === ' ' || key === 'enter') {
+        if (state.aiming) {
+          launchAim();
+          return;
+        }
+
+        beginKeyboardAim();
+        return;
+      }
+
+      if (key === 'escape') {
+        cancelCurrentAim();
+        return;
+      }
+
+      if (key === 'arrowleft' || key === 'a') {
+        moveKeyboardAim(-KEY_AIM_STEP, 0);
+        return;
+      }
+
+      if (key === 'arrowright' || key === 'd') {
+        moveKeyboardAim(KEY_AIM_STEP, 0);
+        return;
+      }
+
+      if (key === 'arrowup' || key === 'w') {
+        moveKeyboardAim(0, -KEY_AIM_STEP);
+        return;
+      }
+
+      if (key === 'arrowdown' || key === 's') {
+        moveKeyboardAim(0, KEY_AIM_STEP);
+        return;
+      }
+
+      if (key === 'r' || key === 'f') {
+        if (!state.aiming) {
+          resetLevel();
+        }
+      }
+    };
+
+    const startAim = (event: PointerEvent) => {
+      const point = pointFromPointer(event, canvas);
+      if (distance(point, ball.position) > 105) return;
+      beginAimAt(point, event.pointerId);
+    };
+
+    const moveAim = (event: PointerEvent) => {
+      if (!state.aiming || activePointerId !== event.pointerId) return;
+      const point = pointFromPointer(event, canvas);
+      updateAim(point);
+    };
+
+    const releaseAim = (event: PointerEvent) => {
+      if (!state.aiming || activePointerId !== event.pointerId) return;
+      launchAim();
+    };
+
+    const cancelAimFromPointer = (event: PointerEvent) => {
+      if (!state.aiming || activePointerId !== event.pointerId) return;
+      cancelCurrentAim();
     };
 
     canvas.addEventListener('pointerdown', startAim);
     canvas.addEventListener('pointermove', moveAim);
     canvas.addEventListener('pointerup', releaseAim);
-    canvas.addEventListener('pointercancel', cancelAim);
-    canvas.addEventListener('lostpointercapture', cancelAim);
+    canvas.addEventListener('pointercancel', cancelAimFromPointer);
+    canvas.addEventListener('lostpointercapture', cancelAimFromPointer);
+    canvas.addEventListener('keydown', onCanvasKeyDown);
+    canvas.addEventListener('blur', cancelCurrentAim);
 
     Render.run(render);
     Runner.run(runner, engine);
@@ -517,8 +612,10 @@ function App() {
       canvas.removeEventListener('pointerdown', startAim);
       canvas.removeEventListener('pointermove', moveAim);
       canvas.removeEventListener('pointerup', releaseAim);
-      canvas.removeEventListener('pointercancel', cancelAim);
-      canvas.removeEventListener('lostpointercapture', cancelAim);
+      canvas.removeEventListener('pointercancel', cancelAimFromPointer);
+      canvas.removeEventListener('lostpointercapture', cancelAimFromPointer);
+      canvas.removeEventListener('keydown', onCanvasKeyDown);
+      canvas.removeEventListener('blur', cancelCurrentAim);
       Render.stop(render);
       Runner.stop(runner);
       Composite.clear(world, false);
@@ -568,6 +665,10 @@ function App() {
 
       <section className="controls">
         <p>{metrics.message}</p>
+        <p className="keyboard-help">
+          Contrôles clavier: flèches ou WASD pour viser, Entrée/Espace pour charger puis lancer,
+          Échap pour annuler, R/F pour recommencer le niveau.
+        </p>
         <div className="button-row">
           <button type="button" onClick={resetLevel}>Reset</button>
           <button type="button" onClick={goToNextLevel}>{metrics.levelComplete ? 'Niveau suivant' : 'Skip niveau'}</button>

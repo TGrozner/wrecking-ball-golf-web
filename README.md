@@ -23,6 +23,8 @@ npm run build
 npm run preview
 ```
 
+`npm run lint` exécute une vérification TypeScript sans build navigateur.
+
 ## Gameplay actuel
 
 - Drag souris/touch sur la boule pour charger le swing.
@@ -43,6 +45,11 @@ https://tgrozner.github.io/wrecking-ball-golf-web/
 Le workflow `.github/workflows/deploy.yml` build automatiquement sur chaque push vers `main` et déploie le dossier `dist` via GitHub Pages.
 
 Dans les réglages du repo, GitHub Pages doit utiliser la source **GitHub Actions**.
+
+## Contribuer
+
+- Installe proprement avec `npm ci` en CI (le dépôt contient maintenant un lockfile) ou `npm install` en local.
+- En cas de doute sur la stabilité de `npm install`, exécute `npm install --package-lock-only` pour ré-générer le `package-lock.json`.
 
 ## Roadmap courte
 
